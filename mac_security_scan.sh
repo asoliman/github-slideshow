@@ -22,6 +22,8 @@ add() { printf '%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" >> "$FINDINGS"; }
 info() { printf '  [*] %s\n' "$1"; }
 step() { printf '\n== %s ==\n' "$1"; }
 have() { command -v "$1" >/dev/null 2>&1; }
+# tmo SECONDS cmd args...  -> run with a time limit (macOS has no `timeout`)
+tmo() { local t=$1; shift; perl -e 'alarm shift; exec @ARGV' "$t" "$@" 2>/dev/null; }
 
 echo "macOS Security Scan - $(date)"
 echo "User: $REAL_USER   Root: $([ $IS_ROOT = 1 ] && echo yes || echo 'no (some checks limited)')"
@@ -30,7 +32,7 @@ echo "User: $REAL_USER   Root: $([ $IS_ROOT = 1 ] && echo yes || echo 'no (some 
 step "1/16 OS version & patch level"
 OSV=$(sw_vers -productVersion); BLD=$(sw_vers -buildVersion)
 info "macOS $OSV ($BLD)  $(uname -m)"
-UPD=$(softwareupdate --list 2>&1)
+UPD=$(tmo 90 softwareupdate --list 2>&1)
 if echo "$UPD" | grep -qi "Label:\|\* "; then
   N=$(echo "$UPD" | grep -c "Label:")
   SEC=$(echo "$UPD" | grep -ci "security\|Rapid Security\|Background Security")
@@ -66,9 +68,16 @@ ST=$(/usr/libexec/ApplicationFirewall/socketfilterfw --getstealthmode 2>&1)
 echo "$ST" | grep -qi "is on\|enabled" || add 4 "Firewall stealth mode off" "$ST" "Firewall Options > Enable stealth mode."
 BI=$(/usr/libexec/ApplicationFirewall/socketfilterfw --getallowsigned 2>&1)
 echo "$BI" | grep -qi "ENABLED" && add 4 "Firewall auto-allows signed apps" "Signed apps may accept incoming connections without prompting." "Firewall Options > uncheck 'Automatically allow built-in/downloaded signed software' if you want stricter control."
-XP=$(system_profiler SPInstallHistoryDataType 2>/dev/null | grep -A3 -i "XProtect" | grep -i "Install Date" | tail -1 | sed 's/^ *//')
-info "XProtect last install: ${XP:-unknown}"
-[ -z "$XP" ] && add 3 "Could not confirm recent XProtect update" "No XProtect install history found." "Ensure automatic security updates are on and check updates."
+XPB=/Library/Apple/System/Library/CoreServices/XProtect.bundle
+[ -d "$XPB" ] || XPB=/System/Library/CoreServices/XProtect.bundle
+XP=$(defaults read "$XPB/Contents/Info" CFBundleShortVersionString 2>/dev/null)
+XPD=$(stat -f %Sm -t %Y-%m-%d "$XPB" 2>/dev/null)
+info "XProtect version ${XP:-unknown} (updated ${XPD:-unknown})"
+[ -z "$XP" ] && add 3 "Could not confirm XProtect version" "XProtect bundle not found." "Ensure automatic security updates are on and check updates."
+if [ -n "$XPD" ]; then
+  AGE=$(( ( $(date +%s) - $(date -j -f %Y-%m-%d "$XPD" +%s 2>/dev/null || echo 0) ) / 86400 ))
+  [ "$AGE" -gt 60 ] 2>/dev/null && add 2 "XProtect malware definitions are $AGE days old" "Last updated $XPD." "Enable 'Install Security Responses and system files' and update macOS."
+fi
 if [ -f /var/db/ConfigurationProfiles/Settings/.profilesAreInstalled ] || profiles list 2>/dev/null | grep -qi "profileIdentifier"; then
   PROF=$(profiles list 2>/dev/null | grep -i "profileIdentifier" | head -5)
   add 3 "Configuration profile(s)/MDM installed" "$PROF" "Verify you recognize these (System Settings > Privacy & Security > Profiles). Remove unknown ones."
@@ -140,7 +149,7 @@ UDPX=$(lsof -nP -iUDP 2>/dev/null | awk 'NR>1 && $9 ~ /^\*:/ {print $1" "$9}' | 
 [ -n "$UDPX" ] && info "UDP wildcard listeners: $(echo "$UDPX" | tr '\n' ';')"
 WIFI_DEV=$(networksetup -listallhardwareports | awk '/Wi-Fi|AirPort/{getline; print $2}' | head -1)
 if [ -n "$WIFI_DEV" ]; then
-  CUR=$(system_profiler SPAirPortDataType 2>/dev/null | awk '/Current Network Information:/{f=1} f' | head -12)
+  CUR=$(tmo 25 system_profiler SPAirPortDataType | awk '/Current Network Information:/{f=1} f' | head -12)
   echo "$CUR" | grep -qi "Security: None\|Open" && add 2 "Connected to an OPEN (unencrypted) Wi-Fi" "$(echo "$CUR" | head -3)" "Disconnect; use WPA2/WPA3 networks or a VPN."
   echo "$CUR" | grep -qi "WEP\|WPA Personal$" && add 3 "Weak Wi-Fi security protocol in use" "$(echo "$CUR" | grep -i security)" "Use WPA2/WPA3 on the router."
   OPENPREF=$(networksetup -listpreferredwirelessnetworks "$WIFI_DEV" 2>/dev/null | wc -l | tr -d ' ')
@@ -198,7 +207,7 @@ for RC in .zshrc .zprofile .zshenv .bash_profile .bashrc .profile; do
 done
 SYSEXT=$(systemextensionsctl list 2>/dev/null | grep -E "activated enabled" | grep -v "com.apple")
 [ -n "$SYSEXT" ] && info "Third-party system extensions: $(echo "$SYSEXT" | wc -l | tr -d ' ')"
-KEXT=$(kmutil showloaded --list-only 2>/dev/null | grep -v "com.apple" | head -10)
+KEXT=$(tmo 20 kmutil showloaded --list-only 2>/dev/null | grep -v "com.apple" | head -10)
 [ -n "$KEXT" ] && add 3 "Third-party kernel extensions loaded" "$KEXT" "Remove unneeded kexts; prefer system-extension based software."
 
 # ---------------------------------------------------------------- 7. Processes
@@ -212,7 +221,7 @@ KB=$(ps -axo comm | grep -Ei "$KNOWNBAD")
 [ -n "$KB" ] && add 1 "Known malware/adware process name running" "$KB" "Remove the app, its launch items and run a scan with Malwarebytes."
 
 # ---------------------------------------------------------------- 8. Installed apps
-step "8/16 Installed applications"
+step "8/16 Installed applications (signature check, can take a few minutes)"
 KNOWNPUP="MacKeeper|Advanced Mac Cleaner|Mac Auto Fixer|Genieo|Spigot|MacCleaner|Mac Adware Cleaner|Shlayer|Bundlore|Mackeeper|Cleaner One|OneStart|Search Baron|Conduit"
 PUP=$(ls /Applications "$REAL_HOME/Applications" 2>/dev/null | grep -Ei "$KNOWNPUP")
 [ -n "$PUP" ] && add 2 "Potentially unwanted / adware applications" "$PUP" "Uninstall these (and their LaunchAgents/extensions)."
@@ -228,11 +237,11 @@ info "Scanned $CNT apps"
 QUAR=$(find "$REAL_HOME/Downloads" -maxdepth 2 \( -name "*.pkg" -o -name "*.dmg" -o -name "*.command" -o -name "*.app" \) 2>/dev/null | head -10)
 [ -n "$QUAR" ] && add 4 "Old installers in Downloads" "$QUAR" "Delete installers you no longer need."
 if have brew; then
-  OUT=$(sudo -u "$REAL_USER" brew outdated 2>/dev/null | head -20)
+  OUT=$(tmo 60 brew outdated | head -20)
   [ -n "$OUT" ] && add 3 "Outdated Homebrew packages" "$(echo "$OUT" | tr '\n' ' ')" "Run: brew update && brew upgrade"
 fi
-have pip3 && PIPO=$(pip3 list --outdated 2>/dev/null | wc -l | tr -d ' ') && [ "${PIPO:-0}" -gt 10 ] && add 4 "Many outdated Python packages ($PIPO)" "pip3 list --outdated" "Upgrade packages inside virtualenvs."
-have npm && NPMO=$(npm -g outdated 2>/dev/null | wc -l | tr -d ' ') && [ "${NPMO:-0}" -gt 3 ] && add 4 "Outdated global npm packages" "$NPMO packages" "npm update -g"
+have pip3 && PIPO=$(tmo 30 pip3 list --outdated | wc -l | tr -d ' ') && [ "${PIPO:-0}" -gt 10 ] && add 4 "Many outdated Python packages ($PIPO)" "pip3 list --outdated" "Upgrade packages inside virtualenvs."
+have npm && NPMO=$(tmo 30 npm -g outdated | wc -l | tr -d ' ') && [ "${NPMO:-0}" -gt 3 ] && add 4 "Outdated global npm packages" "$NPMO packages" "npm update -g"
 APPS=$(ls /Applications | tr '\n' ' ')
 echo "$APPS" | grep -qi "Docker" && [ -S /var/run/docker.sock ] && [ "$(stat -f %Lp /var/run/docker.sock 2>/dev/null)" = "777" ] && add 3 "Docker socket world-writable" "/var/run/docker.sock" "Restrict permissions; Docker socket access is equivalent to root."
 
@@ -297,7 +306,7 @@ step "12/16 Browser exposure"
 CH="$REAL_HOME/Library/Application Support/Google/Chrome/Default/Extensions"
 [ -d "$CH" ] && info "Chrome extensions installed: $(ls "$CH" | wc -l | tr -d ' ')"
 [ -d "$CH" ] && [ "$(ls "$CH" | wc -l)" -gt 12 ] && add 4 "Many Chrome extensions ($(ls "$CH" | wc -l | tr -d ' '))" "Extensions can read all page data." "Remove unused extensions at chrome://extensions."
-SAFEXT=$(pluginkit -mAvvv -p com.apple.Safari.extension 2>/dev/null | grep -c "Path")
+SAFEXT=$(tmo 15 pluginkit -mAvvv -p com.apple.Safari.extension 2>/dev/null | grep -c "Path")
 info "Safari extensions: $SAFEXT"
 for B in "Google Chrome" "Firefox" "Microsoft Edge" "Brave Browser"; do
   [ -d "/Applications/$B.app" ] && V=$(defaults read "/Applications/$B.app/Contents/Info" CFBundleShortVersionString 2>/dev/null) && info "$B $V (verify it's the latest)"
@@ -315,17 +324,17 @@ ICL=$(defaults read MobileMeAccounts Accounts 2>/dev/null | grep -c AccountID)
 info "iCloud accounts signed in: $ICL"
 
 # ---------------------------------------------------------------- 14. Logs
-step "14/16 Log analysis (last 7 days)"
-FAILAUTH=$(log show --last 7d --style compact --predicate 'eventMessage CONTAINS "Failed to authenticate" OR eventMessage CONTAINS "authentication failure"' 2>/dev/null | wc -l | tr -d ' ')
+step "14/16 Log analysis (last 2 days)"
+FAILAUTH=$(tmo 45 log show --last 2d --style compact --predicate 'eventMessage CONTAINS "Failed to authenticate" OR eventMessage CONTAINS "authentication failure"' 2>/dev/null | wc -l | tr -d ' ')
 info "Failed authentication events: $FAILAUTH"
-[ "${FAILAUTH:-0}" -gt 30 ] && add 3 "Many failed authentication events ($FAILAUTH)" "Possible brute force or stuck process." "Check source with: log show --last 7d --predicate 'eventMessage CONTAINS \"authentication\"'"
-SSHF=$(log show --last 7d --style compact --predicate 'process == "sshd" AND eventMessage CONTAINS "Failed"' 2>/dev/null | wc -l | tr -d ' ')
+[ "${FAILAUTH:-0}" -gt 30 ] && add 3 "Many failed authentication events ($FAILAUTH)" "Possible brute force or stuck process." "Check source with: log show --last 2d --predicate 'eventMessage CONTAINS \"authentication\"'"
+SSHF=$(tmo 45 log show --last 2d --style compact --predicate 'process == "sshd" AND eventMessage CONTAINS "Failed"' 2>/dev/null | wc -l | tr -d ' ')
 [ "${SSHF:-0}" -gt 5 ] && add 2 "Failed SSH login attempts ($SSHF)" "Someone is probing SSH." "Disable Remote Login or restrict by key and firewall."
-SUDOF=$(log show --last 7d --style compact --predicate 'process == "sudo" AND eventMessage CONTAINS "incorrect password"' 2>/dev/null | wc -l | tr -d ' ')
+SUDOF=$(tmo 45 log show --last 2d --style compact --predicate 'process == "sudo" AND eventMessage CONTAINS "incorrect password"' 2>/dev/null | wc -l | tr -d ' ')
 [ "${SUDOF:-0}" -gt 5 ] && add 3 "Failed sudo attempts ($SUDOF)" "Repeated wrong sudo passwords." "Verify these were you."
-GKB=$(log show --last 7d --style compact --predicate 'process == "syspolicyd" AND eventMessage CONTAINS "blocked"' 2>/dev/null | wc -l | tr -d ' ')
+GKB=$(tmo 45 log show --last 2d --style compact --predicate 'process == "syspolicyd" AND eventMessage CONTAINS "blocked"' 2>/dev/null | wc -l | tr -d ' ')
 info "Gatekeeper blocks: $GKB"
-LWE=$(log show --last 2d --style compact --predicate 'process == "loginwindow" AND messageType == error' 2>/dev/null | wc -l | tr -d ' ')
+LWE=$(tmo 45 log show --last 2d --style compact --predicate 'process == "loginwindow" AND messageType == error' 2>/dev/null | wc -l | tr -d ' ')
 info "loginwindow errors (2d): $LWE"
 [ "${LWE:-0}" -gt 50 ] && add 4 "Many loginwindow errors ($LWE)" "May relate to the login hang." "Run: log show --last 2d --predicate 'process==\"loginwindow\"' | tail -100"
 PAN=$(ls /Library/Logs/DiagnosticReports/*.panic 2>/dev/null | wc -l | tr -d ' ')
@@ -335,7 +344,7 @@ PAN=$(ls /Library/Logs/DiagnosticReports/*.panic 2>/dev/null | wc -l | tr -d ' '
 step "15/16 Firmware, hardening & misc"
 ARCH=$(uname -m)
 if [ "$ARCH" = "arm64" ]; then
-  SECBOOT=$(system_profiler SPiBridgeDataType 2>/dev/null | grep -i "Secure Boot\|Boot Policy" | head -3)
+  SECBOOT=$(tmo 20 system_profiler SPiBridgeDataType | grep -i "Secure Boot\|Boot Policy" | head -3)
   [ -n "$SECBOOT" ] && info "$SECBOOT"
   [ "$IS_ROOT" = 1 ] && have bputil && BP=$(bputil -d 2>&1 | grep -i "security mode\|Permissive" | head -2) && echo "$BP" | grep -qi "permissive\|reduced" && add 1 "Boot security is Reduced/Permissive" "$BP" "Recovery > Startup Security Utility > Full Security."
 else
@@ -351,7 +360,7 @@ echo "$OPENV" | grep -qi "LibreSSL 2\.\|OpenSSL 1\.0\|OpenSSL 1\.1" && add 4 "Ol
 SIRI=$(defaults read com.apple.assistant.support "Assistant Enabled" 2>/dev/null)
 AIRD=$(defaults read com.apple.sharingd DiscoverableMode 2>/dev/null)
 [ "$AIRD" = "Everyone" ] && add 4 "AirDrop is set to Everyone" "$AIRD" "AirDrop > Contacts Only."
-CAMLOG=$(log show --last 1d --style compact --predicate 'subsystem == "com.apple.UVCExtension" OR eventMessage CONTAINS "camera"' 2>/dev/null | wc -l | tr -d ' ')
+CAMLOG=$(tmo 45 log show --last 1d --style compact --predicate 'subsystem == "com.apple.UVCExtension" OR eventMessage CONTAINS "camera"' 2>/dev/null | wc -l | tr -d ' ')
 info "Camera-related log lines (24h): $CAMLOG"
 SIZE=$(df -k / | awk 'NR==2 {print int($4/1024/1024)}')
 [ "${SIZE:-100}" -lt 10 ] && add 4 "Low free disk space (${SIZE}GB)" "Low space prevents updates and can break login." "Free up space (>20GB recommended)."
