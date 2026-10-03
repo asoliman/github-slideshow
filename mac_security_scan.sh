@@ -21,6 +21,8 @@ trap 'rm -f "$FINDINGS"' EXIT
 add() { printf '%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" >> "$FINDINGS"; }
 info() { printf '  [*] %s\n' "$1"; }
 step() { printf '\n== %s ==\n' "$1"; }
+exec </dev/null                      # never wait for keyboard input
+sudo() { command sudo -n "$@"; }     # never prompt for a password
 have() { command -v "$1" >/dev/null 2>&1; }
 # tmo SECONDS cmd args...  -> run with a time limit (macOS has no `timeout`)
 tmo() { local t=$1; shift; perl -e 'alarm shift; exec @ARGV' "$t" "$@" 2>/dev/null; }
@@ -106,8 +108,7 @@ for U in $(dscl . list /Users UniqueID | awk '$2>=500 {print $1}'); do
     TK=$(sysadminctl -secureTokenStatus "$U" 2>&1)
     echo "$TK" | grep -qi "DISABLED" && add 2 "No Secure Token for user '$U'" "$TK" "Grant from an admin: sysadminctl -secureTokenOn $U -password - -adminUser <admin> -adminPassword -  (also needed for FileVault login on Apple Silicon)."
   fi
-  PWPOL=$(pwpolicy -u "$U" -getaccountpolicies 2>/dev/null | grep -c policyAttributePassword)
-  info "user $U: password policy rules=$PWPOL"
+  info "user $U: found"
 done
 SDF=$(grep -rE "NOPASSWD" /etc/sudoers /etc/sudoers.d 2>/dev/null | grep -v "^#")
 [ -n "$SDF" ] && add 2 "sudo NOPASSWD rules present" "$SDF" "Remove NOPASSWD entries with visudo unless strictly required."
