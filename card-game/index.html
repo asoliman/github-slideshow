@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Uno Card Game</title>
+<style>
+  :root {
+    --red: #e74c3c;
+    --blue: #2980b9;
+    --green: #27ae60;
+    --yellow: #f1c40f;
+    --bg: #0f3d2e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", Arial, sans-serif;
+    background: radial-gradient(circle at center, #145c3f 0%, var(--bg) 100%);
+    color: #fff;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px;
+  }
+  h1 { margin: 8px 0 4px; }
+  #status { margin-bottom: 12px; font-size: 1.1em; min-height: 24px; text-align: center; }
+
+  .area { width: 100%; max-width: 900px; }
+  .label { font-size: 0.85em; opacity: 0.8; margin: 6px 2px 2px; }
+
+  .hand {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+    min-height: 120px;
+    padding: 8px;
+  }
+
+  .card {
+    width: 70px;
+    height: 100px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6em;
+    font-weight: bold;
+    color: #fff;
+    border: 3px solid rgba(255,255,255,0.8);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    cursor: pointer;
+    user-select: none;
+    transition: transform 0.15s ease;
+    flex-shrink: 0;
+  }
+  .card:hover { transform: translateY(-6px); }
+  .card.disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+  .card.back {
+    background: repeating-linear-gradient(45deg, #333, #333 6px, #555 6px, #555 12px);
+    cursor: default;
+  }
+  .card.red { background: var(--red); }
+  .card.blue { background: var(--blue); }
+  .card.green { background: var(--green); }
+  .card.yellow { background: var(--yellow); color: #222; }
+  .card.wild { background: linear-gradient(135deg, var(--red), var(--yellow), var(--green), var(--blue)); }
+
+  .table {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    margin: 16px 0;
+  }
+  .pile-label { text-align: center; font-size: 0.8em; opacity: 0.8; }
+
+  button {
+    background: #f39c12;
+    color: #222;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 0.95em;
+  }
+  button:hover { background: #e67e22; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  #colorPicker {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+  }
+  #colorPicker .box {
+    background: #1a1a1a;
+    padding: 24px;
+    border-radius: 12px;
+    text-align: center;
+  }
+  .colorBtn {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: inline-block;
+    margin: 8px;
+    cursor: pointer;
+    border: 3px solid #fff;
+  }
+
+  #log {
+    width: 100%;
+    max-width: 900px;
+    max-height: 100px;
+    overflow-y: auto;
+    font-size: 0.8em;
+    opacity: 0.75;
+    background: rgba(0,0,0,0.25);
+    border-radius: 6px;
+    padding: 6px 10px;
+    margin-top: 12px;
+  }
+</style>
+</head>
+<body>
+
+<h1>🎴 Uno</h1>
+<div id="status">Loading...</div>
+
+<div class="area">
+  <div class="label">Computer's hand</div>
+  <div class="hand" id="aiHand"></div>
+</div>
+
+<div class="table">
+  <div>
+    <div class="pile-label">Draw</div>
+    <div class="card back" id="drawPile">UNO</div>
+  </div>
+  <div>
+    <div class="pile-label">Discard</div>
+    <div id="discardPile"></div>
+  </div>
+</div>
+
+<div class="area">
+  <div class="label">Your hand</div>
+  <div class="hand" id="playerHand"></div>
+</div>
+
+<div style="margin-top:12px; display:flex; gap:10px;">
+  <button id="newGameBtn">New Game</button>
+  <button id="drawBtn">Draw Card</button>
+</div>
+
+<div id="log"></div>
+
+<div id="colorPicker">
+  <div class="box">
+    <p>Choose a color</p>
+    <div>
+      <span class="colorBtn" style="background:var(--red)" data-color="red"></span>
+      <span class="colorBtn" style="background:var(--blue)" data-color="blue"></span>
+      <span class="colorBtn" style="background:var(--green)" data-color="green"></span>
+      <span class="colorBtn" style="background:var(--yellow)" data-color="yellow"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+const COLORS = ["red", "blue", "green", "yellow"];
+const NUMBERS = ["0","1","2","3","4","5","6","7","8","9"];
+const ACTIONS = ["Skip", "Reverse", "+2"];
+
+let deck = [];
+let discard = [];
+let playerHand = [];
+let aiHand = [];
+let currentColor = null;
+let turn = "player"; // "player" | "ai"
+let pendingWildCard = null;
+let gameOver = false;
+
+function buildDeck() {
+  const d = [];
+  for (const color of COLORS) {
+    for (const num of NUMBERS) {
+      d.push({ color, value: num, type: "number" });
+      if (num !== "0") d.push({ color, value: num, type: "number" });
+    }
+    for (const action of ACTIONS) {
+      d.push({ color, value: action, type: "action" });
+      d.push({ color, value: action, type: "action" });
+    }
+  }
+  for (let i = 0; i < 4; i++) {
+    d.push({ color: "wild", value: "Wild", type: "wild" });
+    d.push({ color: "wild", value: "Wild+4", type: "wild" });
+  }
+  return d;
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function log(msg) {
+  const el = document.getElementById("log");
+  const line = document.createElement("div");
+  line.textContent = msg;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+function setStatus(msg) {
+  document.getElementById("status").textContent = msg;
+}
+
+function drawFromDeck(n = 1) {
+  const drawn = [];
+  for (let i = 0; i < n; i++) {
+    if (deck.length === 0) reshuffleDiscardIntoDeck();
+    if (deck.length === 0) break;
+    drawn.push(deck.pop());
+  }
+  return drawn;
+}
+
+function reshuffleDiscardIntoDeck() {
+  if (discard.length <= 1) return;
+  const top = discard.pop();
+  deck = shuffle(discard);
+  discard = [top];
+  log("Reshuffled discard pile into draw pile.");
+}
+
+function newGame() {
+  deck = shuffle(buildDeck());
+  discard = [];
+  gameOver = false;
+  playerHand = drawFromDeck(7);
+  aiHand = drawFromDeck(7);
+
+  let first;
+  do {
+    first = deck.pop();
+    discard.push(first);
+  } while (first.type === "wild");
+
+  currentColor = first.color;
+  turn = "player";
+  log("New game started. You go first.");
+  render();
+}
+
+function cardColorClass(card) {
+  return card.type === "wild" ? "wild" : card.color;
+}
+
+function cardLabel(card) {
+  if (card.type === "number") return card.value;
+  if (card.value === "Skip") return "⊘";
+  if (card.value === "Reverse") return "⇄";
+  if (card.value === "+2") return "+2";
+  if (card.value === "Wild") return "W";
+  if (card.value === "Wild+4") return "+4";
+  return card.value;
+}
+
+function canPlay(card) {
+  const top = discard[discard.length - 1];
+  if (card.type === "wild") return true;
+  if (card.color === currentColor) return true;
+  if (card.value === top.value) return true;
+  return false;
+}
+
+function render() {
+  const aiEl = document.getElementById("aiHand");
+  aiEl.innerHTML = "";
+  for (let i = 0; i < aiHand.length; i++) {
+    const c = document.createElement("div");
+    c.className = "card back";
+    c.textContent = "?";
+    aiEl.appendChild(c);
+  }
+
+  const discardEl = document.getElementById("discardPile");
+  discardEl.innerHTML = "";
+  const top = discard[discard.length - 1];
+  const topCard = document.createElement("div");
+  topCard.className = "card " + (top.type === "wild" ? currentColor : cardColorClass(top));
+  topCard.textContent = cardLabel(top);
+  discardEl.appendChild(topCard);
+
+  const playerEl = document.getElementById("playerHand");
+  playerEl.innerHTML = "";
+  playerHand.forEach((card, idx) => {
+    const c = document.createElement("div");
+    const playable = turn === "player" && !gameOver && canPlay(card);
+    c.className = "card " + cardColorClass(card) + (playable ? "" : " disabled");
+    c.textContent = cardLabel(card);
+    c.addEventListener("click", () => { if (playable) playPlayerCard(idx); });
+    playerEl.appendChild(c);
+  });
+
+  document.getElementById("drawBtn").disabled = turn !== "player" || gameOver;
+
+  if (gameOver) {
+    // status already set by win/lose
+  } else if (turn === "player") {
+    setStatus(`Your turn — current color: ${currentColor.toUpperCase()}`);
+  } else {
+    setStatus("Computer is thinking...");
+  }
+}
+
+function playPlayerCard(idx) {
+  const card = playerHand[idx];
+  if (!canPlay(card)) return;
+  playerHand.splice(idx, 1);
+  discard.push(card);
+
+  if (card.type === "wild") {
+    pendingWildCard = card;
+    document.getElementById("colorPicker").style.display = "flex";
+    return;
+  }
+
+  currentColor = card.color;
+  resolveCardEffect(card, "player");
+}
+
+function resolveCardEffect(card, playedBy) {
+  if (checkWin(playedBy)) return;
+
+  if (card.value === "Skip") {
+    log(`${playedBy === "player" ? "You" : "Computer"} played Skip. Turn stays the same side effectively skips opponent.`);
+    turn = playedBy; // same player goes again (2-player skip = play again)
+  } else if (card.value === "Reverse") {
+    log(`${playedBy === "player" ? "You" : "Computer"} played Reverse.`);
+    turn = playedBy; // 2-player reverse acts like skip
+  } else if (card.value === "+2") {
+    const victim = playedBy === "player" ? "ai" : "player";
+    const drawn = drawFromDeck(2);
+    if (victim === "ai") aiHand.push(...drawn); else playerHand.push(...drawn);
+    log(`${playedBy === "player" ? "You" : "Computer"} played +2. ${victim === "ai" ? "Computer" : "You"} drew 2 cards.`);
+    turn = playedBy;
+  } else if (card.value === "Wild+4") {
+    const victim = playedBy === "player" ? "ai" : "player";
+    const drawn = drawFromDeck(4);
+    if (victim === "ai") aiHand.push(...drawn); else playerHand.push(...drawn);
+    log(`${playedBy === "player" ? "You" : "Computer"} played Wild+4. ${victim === "ai" ? "Computer" : "You"} drew 4 cards.`);
+    turn = playedBy;
+  } else {
+    turn = playedBy === "player" ? "ai" : "player";
+  }
+
+  render();
+  if (!gameOver && turn === "ai") {
+    setTimeout(aiTurn, 800);
+  }
+}
+
+function checkWin(playedBy) {
+  if (playedBy === "player" && playerHand.length === 0) {
+    gameOver = true;
+    setStatus("🎉 You win!");
+    render();
+    return true;
+  }
+  if (playedBy === "ai" && aiHand.length === 0) {
+    gameOver = true;
+    setStatus("💻 Computer wins!");
+    render();
+    return true;
+  }
+  return false;
+}
+
+document.querySelectorAll(".colorBtn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const color = btn.getAttribute("data-color");
+    document.getElementById("colorPicker").style.display = "none";
+    currentColor = color;
+    const card = pendingWildCard;
+    pendingWildCard = null;
+    resolveCardEffect(card, "player");
+  });
+});
+
+document.getElementById("drawBtn").addEventListener("click", () => {
+  if (turn !== "player" || gameOver) return;
+  const drawn = drawFromDeck(1);
+  playerHand.push(...drawn);
+  log("You drew a card.");
+  turn = "ai";
+  render();
+  setTimeout(aiTurn, 800);
+});
+
+function aiTurn() {
+  if (gameOver) return;
+  const playable = aiHand.filter(c => canPlay(c));
+  if (playable.length === 0) {
+    const drawn = drawFromDeck(1);
+    aiHand.push(...drawn);
+    log("Computer drew a card.");
+    turn = "player";
+    render();
+    return;
+  }
+
+  playable.sort((a, b) => {
+    const rank = c => c.type === "wild" ? 0 : c.type === "action" ? 1 : 2;
+    return rank(a) - rank(b);
+  });
+  const chosen = playable[0];
+  const idx = aiHand.indexOf(chosen);
+  aiHand.splice(idx, 1);
+  discard.push(chosen);
+
+  if (chosen.type === "wild") {
+    const colorCounts = {};
+    COLORS.forEach(c => colorCounts[c] = 0);
+    aiHand.forEach(c => { if (c.color in colorCounts) colorCounts[c.color]++; });
+    const bestColor = COLORS.reduce((a, b) => colorCounts[a] >= colorCounts[b] ? a : b);
+    currentColor = bestColor;
+    log(`Computer played ${chosen.value} and chose ${bestColor.toUpperCase()}.`);
+  } else {
+    currentColor = chosen.color;
+    log(`Computer played ${cardLabel(chosen)} (${chosen.color}).`);
+  }
+
+  resolveCardEffect(chosen, "ai");
+}
+
+document.getElementById("newGameBtn").addEventListener("click", newGame);
+document.getElementById("drawPile").addEventListener("click", () => {
+  document.getElementById("drawBtn").click();
+});
+
+newGame();
+</script>
+
+</body>
+</html>
