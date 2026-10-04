@@ -1,17 +1,16 @@
-# Monster Trek
+# Monster Trek: Card Clash
 
-A small browser-based creature-catching and battling game, inspired by Aniimo (the PS5 open-world monster-catching RPG). Built as a lightweight 2D version since a full 3D open-world game isn't feasible as a single static page.
+A 2D card battler built from the Monster Trek / Aniimo-inspired creature roster. No map or walking around — it's a head-to-head card game against a computer opponent.
 
 ## Play
 
 Open `index.html` in any browser. No build step or server required.
 
-## Features
+## How it works
 
-- Pick a starter creature (fire, water, grass, or electric type)
-- Walk around a grid map (arrow keys, WASD, or on-screen buttons)
-- Random wild encounters in tall grass
-- Turn-based battles with type effectiveness (fire > grass > water > fire, etc.)
-- Catch wild creatures (catch chance scales with their remaining HP)
-- Build a team of up to several creatures and switch between them in battle
-- Leveling and evolution at level thresholds
+- Each side has a 24-card deck (2 copies of each of 12 creatures), a hand, and a board.
+- Energy increases by 1 each of your turns (cap 8); creature cards cost energy to play.
+- A creature played this turn is "resting" and can't attack until your next turn.
+- On your turn, select a ready creature on your board, then click an enemy creature (to fight it) or the opponent's board area (to hit them directly).
+- Type effectiveness applies: fire > grass > water > fire, electric > water, rock > fire, rock > electric (effective hits do 1.5x, resisted hits do 0.6x).
+- Reduce the opponent's life to 0, or outlast them if they run out of cards, to win.

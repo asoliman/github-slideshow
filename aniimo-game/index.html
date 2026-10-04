@@ -3,540 +3,568 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Monster Trek</title>
+<title>Monster Trek: Card Clash</title>
 <style>
-  :root { --tile: 48px; }
   * { box-sizing: border-box; }
   body {
     margin: 0;
     font-family: "Segoe UI", Arial, sans-serif;
-    background: #10151a;
+    background: radial-gradient(circle at top, #1b2630 0%, #0c1116 100%);
     color: #fff;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 16px;
-  }
-  h1 { margin: 4px 0; }
-  #sub { opacity: 0.7; font-size: 0.85em; margin-bottom: 10px; }
-
-  #screens { position: relative; width: 100%; max-width: 620px; }
-  .screen { display: none; }
-  .screen.active { display: block; }
-
-  /* ---- Starter select ---- */
-  #starterList { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 16px; }
-  .starterCard {
-    background: #1d2733;
-    border: 2px solid #334;
-    border-radius: 10px;
     padding: 14px;
-    width: 140px;
-    text-align: center;
-    cursor: pointer;
   }
-  .starterCard:hover { border-color: #f5c242; }
-  .starterCard .icon { font-size: 2.6em; }
-  .typeTag {
-    display: inline-block;
-    font-size: 0.7em;
-    padding: 2px 8px;
-    border-radius: 10px;
-    margin-top: 4px;
-  }
+  h1 { margin: 4px 0; font-size: 1.4em; }
+  #sub { opacity: 0.7; font-size: 0.8em; margin-bottom: 10px; text-align: center; }
 
-  /* ---- Map ---- */
-  #mapWrap { display: flex; justify-content: center; }
-  #map {
-    display: grid;
-    gap: 1px;
-    background: #000;
-    border: 3px solid #445;
-    border-radius: 6px;
-  }
-  .tile {
-    width: var(--tile);
-    height: var(--tile);
+  #game { width: 100%; max-width: 820px; }
+
+  .playerRow {
     display: flex;
     align-items: center;
+    gap: 10px;
+    margin: 4px 0;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.04);
+  }
+  .lifeBadge, .energyBadge, .deckBadge {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.85em;
+    font-weight: bold;
+  }
+  .lifeBadge { background: #6b1f1f; }
+  .energyBadge { background: #1f4a6b; }
+  .deckBadge { background: #333; opacity: 0.85; }
+  .rowLabel { font-size: 0.8em; opacity: 0.75; margin-right: auto; }
+
+  .board {
+    display: flex;
+    gap: 8px;
+    min-height: 118px;
+    padding: 8px;
+    border-radius: 8px;
+    background: rgba(0,0,0,0.25);
+    flex-wrap: wrap;
     justify-content: center;
-    font-size: 1.3em;
   }
-  .tile.grass { background: #2f6b35; }
-  .tile.path { background: #5b4a32; }
-  .tile.water { background: #1c5d8c; }
-  .tile.tall { background: #1f4a24; }
-  .tile.player { background: #5b4a32; }
-
-  #hud { display: flex; justify-content: space-between; width: 100%; max-width: 620px; margin-top: 10px; font-size: 0.9em; }
-  #teamBar { display: flex; gap: 6px; }
-  .teamIcon {
-    width: 34px; height: 34px;
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    background: #26323f; border: 2px solid #445;
-    font-size: 1.1em;
+  .boardSlotEmpty {
+    width: 84px; height: 110px;
+    border: 2px dashed rgba(255,255,255,0.15);
+    border-radius: 8px;
   }
-  .teamIcon.fainted { opacity: 0.3; }
 
-  #controls { margin-top: 10px; display: grid; grid-template-columns: 50px 50px 50px; grid-template-rows: 44px 44px 44px; gap: 4px; justify-content: center; }
-  #controls button { font-size: 1.2em; }
-  #ctrlUp { grid-column: 2; grid-row: 1; }
-  #ctrlLeft { grid-column: 1; grid-row: 2; }
-  #ctrlDown { grid-column: 2; grid-row: 2; }
-  #ctrlRight { grid-column: 3; grid-row: 2; }
+  .card {
+    width: 84px;
+    min-height: 110px;
+    border-radius: 8px;
+    padding: 5px;
+    border: 2px solid rgba(255,255,255,0.7);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    text-align: center;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+  }
+  .card:hover { transform: translateY(-4px); }
+  .card.selected { box-shadow: 0 0 0 3px #f5c242; transform: translateY(-6px); }
+  .card.resting { opacity: 0.55; cursor: default; }
+  .card.attacked { opacity: 0.75; }
+  .card.disabled { opacity: 0.4; cursor: not-allowed; }
+  .card .cost {
+    position: absolute; top: -8px; left: -8px;
+    background: #222; border: 2px solid #f5c242; color: #f5c242;
+    width: 22px; height: 22px; border-radius: 50%;
+    font-size: 0.75em; display: flex; align-items: center; justify-content: center;
+    font-weight: bold;
+  }
+  .card .icon { font-size: 1.8em; margin-top: 4px; }
+  .card .name { font-size: 0.68em; font-weight: bold; line-height: 1.1; }
+  .card .stats { font-size: 0.7em; display: flex; gap: 6px; }
+  .card .stats .atk { color: #ff8a65; }
+  .card .stats .hp { color: #80e27e; }
 
+  .card.fire     { background: linear-gradient(160deg, #6b2d1f, #3a140c); }
+  .card.water    { background: linear-gradient(160deg, #1f3f6b, #0c1f3a); }
+  .card.grass    { background: linear-gradient(160deg, #1f6b35, #0c3a1a); }
+  .card.electric { background: linear-gradient(160deg, #6b5f1f, #3a330c); color:#fff; }
+  .card.rock     { background: linear-gradient(160deg, #4a3b2d, #241b14); }
+
+  .card.back {
+    background: repeating-linear-gradient(45deg, #333, #333 6px, #555 6px, #555 12px);
+    cursor: default;
+  }
+
+  #hand {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+    min-height: 118px;
+    padding: 8px;
+  }
+
+  #enemyHandRow {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+  }
+  .miniBack {
+    width: 40px; height: 56px;
+    border-radius: 6px;
+    background: repeating-linear-gradient(45deg, #333, #333 5px, #555 5px, #555 10px);
+    border: 1px solid #555;
+  }
+
+  #controls { display: flex; justify-content: center; gap: 10px; margin: 10px 0; }
   button {
     background: #f39c12;
     color: #222;
     border: none;
-    padding: 8px 14px;
+    padding: 9px 18px;
     border-radius: 6px;
     font-weight: bold;
     cursor: pointer;
+    font-size: 0.95em;
   }
   button:hover { background: #e67e22; }
   button:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  /* ---- Battle ---- */
-  #battleScreen { background: #1a2430; border-radius: 10px; padding: 16px; }
-  .battleRow { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-  .battler { text-align: center; width: 45%; }
-  .battler .icon { font-size: 3em; }
-  .hpBarOuter { background: #333; border-radius: 6px; height: 10px; overflow: hidden; margin-top: 4px; }
-  .hpBarInner { background: #2ecc71; height: 100%; transition: width 0.3s ease; }
-  .hpBarInner.low { background: #e74c3c; }
-  #battleLog { background: #0f161d; border-radius: 6px; padding: 8px; min-height: 48px; font-size: 0.9em; margin: 10px 0; }
-  #battleActions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  #moveList, #itemList, #teamList { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  #log {
+    width: 100%;
+    max-height: 90px;
+    overflow-y: auto;
+    font-size: 0.8em;
+    opacity: 0.8;
+    background: rgba(0,0,0,0.3);
+    border-radius: 6px;
+    padding: 6px 10px;
+    margin-top: 6px;
+  }
 
-  .typeTag.normal { background:#95a5a6; color:#222; }
-  .typeTag.fire { background:#e74c3c; }
-  .typeTag.water { background:#2980b9; }
-  .typeTag.grass { background:#27ae60; }
-  .typeTag.electric { background:#f1c40f; color:#222; }
-  .typeTag.rock { background:#8d6e63; }
+  #turnBanner {
+    text-align: center;
+    font-size: 0.95em;
+    margin: 4px 0;
+    padding: 4px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.06);
+  }
+
+  #overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    text-align: center;
+  }
+  #overlay .box { background: #1a1a1a; padding: 28px 36px; border-radius: 12px; }
+  #overlay h2 { margin: 0 0 12px; }
 </style>
 </head>
 <body>
 
-<h1>🐾 Monster Trek</h1>
-<div id="sub">A tiny creature-catching adventure, inspired by Aniimo</div>
+<h1>🃏 Monster Trek: Card Clash</h1>
+<div id="sub">A 2D card battler built from the Monster Trek creatures — play, attack, win.</div>
 
-<div id="screens">
+<div id="game">
 
-  <div class="screen active" id="starterScreen">
-    <p>Choose your starter companion:</p>
-    <div id="starterList"></div>
+  <div class="playerRow">
+    <span class="rowLabel">Opponent</span>
+    <span class="lifeBadge" id="enemyLife"></span>
+    <span class="energyBadge" id="enemyEnergy"></span>
+    <span class="deckBadge" id="enemyDeckCount"></span>
+    <div id="enemyHandRow"></div>
   </div>
 
-  <div class="screen" id="mapScreen">
-    <div id="mapWrap"><div id="map"></div></div>
-    <div id="hud">
-      <div id="teamBar"></div>
-      <div id="coords"></div>
-    </div>
-    <div id="controls">
-      <button id="ctrlUp">↑</button>
-      <button id="ctrlLeft">←</button>
-      <button id="ctrlDown">↓</button>
-      <button id="ctrlRight">→</button>
-    </div>
-    <p style="opacity:0.6; font-size:0.8em; text-align:center;">Arrow keys / WASD also work. Walk in tall grass to find wild Aniimo.</p>
+  <div class="board" id="enemyBoard"></div>
+
+  <div id="turnBanner"></div>
+
+  <div class="board" id="playerBoard"></div>
+
+  <div class="playerRow">
+    <span class="rowLabel">You</span>
+    <span class="lifeBadge" id="playerLife"></span>
+    <span class="energyBadge" id="playerEnergy"></span>
+    <span class="deckBadge" id="playerDeckCount"></span>
   </div>
 
-  <div class="screen" id="battleScreen">
-    <div class="battleRow">
-      <div class="battler" id="enemyBattler"></div>
-      <div class="battler" id="playerBattler"></div>
-    </div>
-    <div id="battleLog">A wild creature appeared!</div>
-    <div id="battleActions">
-      <button id="btnFight">Fight</button>
-      <button id="btnCatch">Catch</button>
-      <button id="btnTeam">Team</button>
-      <button id="btnRun">Run</button>
-    </div>
-    <div id="moveList" style="display:none; margin-top:10px;"></div>
-    <div id="teamList" style="display:none; margin-top:10px;"></div>
+  <div id="hand"></div>
+
+  <div id="controls">
+    <button id="endTurnBtn">End Turn</button>
+    <button id="newGameBtn">New Game</button>
   </div>
 
+  <div id="log"></div>
+</div>
+
+<div id="overlay">
+  <div class="box">
+    <h2 id="overlayTitle"></h2>
+    <button id="overlayBtn">Play Again</button>
+  </div>
 </div>
 
 <script>
-/* ---------------- Data ---------------- */
+/* ---------------- Card data ---------------- */
 const SPECIES = [
-  { id: "flambub",  name: "Flambub",  type: "fire",     icon: "🔥", base: { hp: 32, atk: 11, def: 7 },  evoLevel: 8,  evoTo: "flamaul" },
-  { id: "flamaul",  name: "Flamaul",  type: "fire",     icon: "🐉", base: { hp: 48, atk: 17, def: 10 } },
-  { id: "aquorb",   name: "Aquorb",   type: "water",    icon: "💧", base: { hp: 34, atk: 9,  def: 9 },  evoLevel: 8,  evoTo: "aquiron" },
-  { id: "aquiron",  name: "Aquiron",  type: "water",    icon: "🐋", base: { hp: 50, atk: 14, def: 14 } },
-  { id: "leafkit",  name: "Leafkit",  type: "grass",    icon: "🌿", base: { hp: 33, atk: 10, def: 8 },  evoLevel: 8,  evoTo: "florabeast" },
-  { id: "florabeast", name: "Florabeast", type: "grass", icon: "🌳", base: { hp: 49, atk: 15, def: 12 } },
-  { id: "sparchick", name: "Sparchick", type: "electric", icon: "⚡", base: { hp: 28, atk: 13, def: 6 }, evoLevel: 7, evoTo: "voltjay" },
-  { id: "voltjay",  name: "Voltjay",  type: "electric", icon: "🦅", base: { hp: 42, atk: 19, def: 8 } },
-  { id: "pebblit",  name: "Pebblit",  type: "rock",     icon: "🪨", base: { hp: 38, atk: 8,  def: 14 }, evoLevel: 9, evoTo: "boulderon" },
-  { id: "boulderon", name: "Boulderon", type: "rock",   icon: "🗿", base: { hp: 55, atk: 12, def: 20 } },
-  { id: "mossling", name: "Mossling", type: "grass",    icon: "🍃", base: { hp: 30, atk: 9,  def: 9 } },
-  { id: "finbit",   name: "Finbit",   type: "water",    icon: "🐟", base: { hp: 29, atk: 10, def: 7 } },
+  { id: "sparchick",  name: "Sparchick",  type: "electric", icon: "⚡", cost: 1, hp: 16, atk: 6,  def: 2 },
+  { id: "finbit",     name: "Finbit",     type: "water",     icon: "🐟", cost: 1, hp: 16, atk: 5,  def: 3 },
+  { id: "flambub",    name: "Flambub",    type: "fire",      icon: "🔥", cost: 2, hp: 20, atk: 5,  def: 3 },
+  { id: "aquorb",     name: "Aquorb",     type: "water",     icon: "💧", cost: 2, hp: 22, atk: 4,  def: 4 },
+  { id: "leafkit",    name: "Leafkit",    type: "grass",     icon: "🌿", cost: 2, hp: 21, atk: 4,  def: 4 },
+  { id: "mossling",   name: "Mossling",   type: "grass",     icon: "🍃", cost: 2, hp: 18, atk: 4,  def: 4 },
+  { id: "pebblit",    name: "Pebblit",    type: "rock",       icon: "🪨", cost: 3, hp: 26, atk: 3,  def: 7 },
+  { id: "voltjay",    name: "Voltjay",    type: "electric",  icon: "🦅", cost: 4, hp: 32, atk: 10, def: 4 },
+  { id: "flamaul",    name: "Flamaul",    type: "fire",      icon: "🐉", cost: 5, hp: 40, atk: 9,  def: 6 },
+  { id: "aquiron",    name: "Aquiron",    type: "water",     icon: "🐋", cost: 5, hp: 42, atk: 7,  def: 7 },
+  { id: "florabeast", name: "Florabeast", type: "grass",     icon: "🌳", cost: 5, hp: 41, atk: 8,  def: 6 },
+  { id: "boulderon",  name: "Boulderon",  type: "rock",       icon: "🗿", cost: 6, hp: 45, atk: 6,  def: 11 },
 ];
 
-const MOVES = {
-  fire:     [{ name: "Ember",      power: 9  }, { name: "Flame Burst", power: 14 }],
-  water:    [{ name: "Aqua Jet",   power: 9  }, { name: "Tidal Slam",  power: 14 }],
-  grass:    [{ name: "Vine Whip",  power: 9  }, { name: "Leaf Storm",  power: 14 }],
-  electric: [{ name: "Spark",      power: 10 }, { name: "Volt Surge",  power: 15 }],
-  rock:     [{ name: "Rock Toss",  power: 10 }, { name: "Boulder Crush", power: 15 }],
-};
-
 const TYPE_EFFECT = {
-  fire: { grass: 1.5, water: 0.6 },
-  water: { fire: 1.5, grass: 0.6 },
-  grass: { water: 1.5, fire: 0.6 },
+  fire:     { grass: 1.5, water: 0.6 },
+  water:    { fire: 1.5, grass: 0.6 },
+  grass:    { water: 1.5, fire: 0.6 },
   electric: { water: 1.5, rock: 0.6 },
-  rock: { fire: 1.5, electric: 0.6 },
+  rock:     { fire: 1.5, electric: 0.6 },
 };
 
 function speciesById(id) { return SPECIES.find(s => s.id === id); }
 
-function makeCreature(speciesId, level) {
+function makeCard(speciesId) {
   const sp = speciesById(speciesId);
-  const hp = sp.base.hp + level * 3;
   return {
+    uid: Math.random().toString(36).slice(2),
     speciesId,
     name: sp.name,
-    level,
-    xp: 0,
-    hp,
-    maxHp: hp,
-    atk: sp.base.atk + level,
-    def: sp.base.def + level,
+    type: sp.type,
+    icon: sp.icon,
+    cost: sp.cost,
+    atk: sp.atk,
+    hp: sp.hp,
+    maxHp: sp.hp,
+    resting: true,
+    attacked: false,
   };
 }
 
-/* ---------------- State ---------------- */
-let team = [];
-let player = { x: 5, y: 4 };
-const MAP_W = 11, MAP_H = 9;
-let mapTiles = [];
-let wildEncounter = null;
-let battleContext = null; // { enemy, choosingMove, pendingSwitch }
-
-/* ---------------- Map generation ---------------- */
-function buildMap() {
-  mapTiles = [];
-  for (let y = 0; y < MAP_H; y++) {
-    const row = [];
-    for (let x = 0; x < MAP_W; x++) {
-      let t = "grass";
-      if (x === 0 || y === 0 || x === MAP_W - 1 || y === MAP_H - 1) t = "water";
-      else if ((x + y) % 5 === 0) t = "path";
-      else if (Math.random() < 0.35) t = "tall";
-      row.push(t);
-    }
-    mapTiles.push(row);
-  }
-  mapTiles[4][5] = "path"; // start tile
-}
-
-function renderMap() {
-  const mapEl = document.getElementById("map");
-  mapEl.style.gridTemplateColumns = `repeat(${MAP_W}, var(--tile))`;
-  mapEl.innerHTML = "";
-  for (let y = 0; y < MAP_H; y++) {
-    for (let x = 0; x < MAP_W; x++) {
-      const div = document.createElement("div");
-      const isPlayer = x === player.x && y === player.y;
-      div.className = "tile " + mapTiles[y][x];
-      if (isPlayer) div.textContent = "🧑";
-      else if (mapTiles[y][x] === "tall") div.textContent = "🌾";
-      else if (mapTiles[y][x] === "water") div.textContent = "🌊";
-      mapEl.appendChild(div);
-    }
-  }
-  document.getElementById("coords").textContent = `(${player.x}, ${player.y})`;
-  renderTeamBar();
-}
-
-function renderTeamBar() {
-  const bar = document.getElementById("teamBar");
-  bar.innerHTML = "";
-  team.forEach(c => {
-    const sp = speciesById(c.speciesId);
-    const icon = document.createElement("div");
-    icon.className = "teamIcon" + (c.hp <= 0 ? " fainted" : "");
-    icon.textContent = sp.icon;
-    icon.title = `${c.name} Lv.${c.level} (${c.hp}/${c.maxHp} HP)`;
-    bar.appendChild(icon);
+function buildDeck() {
+  const cards = [];
+  SPECIES.forEach(sp => {
+    cards.push(makeCard(sp.id));
+    cards.push(makeCard(sp.id));
   });
+  return shuffle(cards);
 }
 
-function showScreen(id) {
-  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
-  document.getElementById(id).classList.add("active");
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 }
 
-/* ---------------- Starter selection ---------------- */
-function renderStarters() {
-  const starterIds = ["flambub", "aquorb", "leafkit", "sparchick"];
-  const list = document.getElementById("starterList");
-  list.innerHTML = "";
-  starterIds.forEach(id => {
-    const sp = speciesById(id);
-    const card = document.createElement("div");
-    card.className = "starterCard";
-    card.innerHTML = `
-      <div class="icon">${sp.icon}</div>
-      <div>${sp.name}</div>
-      <div class="typeTag ${sp.type}">${sp.type}</div>
-    `;
-    card.addEventListener("click", () => chooseStarter(id));
-    list.appendChild(card);
-  });
+/* ---------------- Game state ---------------- */
+const START_LIFE = 25;
+const MAX_ENERGY = 8;
+const MAX_BOARD = 5;
+const MAX_HAND = 8;
+
+let state = null;
+
+function newGame() {
+  state = {
+    turn: "player",
+    turnNumber: 1,
+    player: { life: START_LIFE, energy: 1, energyMax: 1, deck: buildDeck(), hand: [], board: [] },
+    enemy:  { life: START_LIFE, energy: 1, energyMax: 1, deck: buildDeck(), hand: [], board: [] },
+    selected: null,
+    over: false,
+  };
+  drawCards(state.player, 4);
+  drawCards(state.enemy, 4);
+  clearLog();
+  log("New game! You go first.");
+  document.getElementById("overlay").style.display = "none";
+  render();
 }
 
-function chooseStarter(id) {
-  team = [makeCreature(id, 5)];
-  buildMap();
-  showScreen("mapScreen");
-  renderMap();
-}
-
-/* ---------------- Movement & encounters ---------------- */
-function tryMove(dx, dy) {
-  if (wildEncounter) return;
-  const nx = player.x + dx, ny = player.y + dy;
-  if (nx < 0 || ny < 0 || nx >= MAP_W || ny >= MAP_H) return;
-  if (mapTiles[ny][nx] === "water") return;
-  player.x = nx; player.y = ny;
-  renderMap();
-
-  if (mapTiles[ny][nx] === "tall" && Math.random() < 0.3) {
-    startWildEncounter();
+function drawCards(side, n) {
+  for (let i = 0; i < n; i++) {
+    if (side.deck.length === 0) continue;
+    if (side.hand.length >= MAX_HAND) break;
+    side.hand.push(side.deck.pop());
   }
 }
 
-document.addEventListener("keydown", e => {
-  const map = { ArrowUp: [0,-1], ArrowDown: [0,1], ArrowLeft: [-1,0], ArrowRight: [1,0],
-    w: [0,-1], s: [0,1], a: [-1,0], d: [1,0] };
-  if (map[e.key] && document.getElementById("mapScreen").classList.contains("active")) {
-    tryMove(...map[e.key]);
+function clearLog() { document.getElementById("log").innerHTML = ""; }
+function log(msg) {
+  const el = document.getElementById("log");
+  const line = document.createElement("div");
+  line.textContent = msg;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+/* ---------------- Rendering ---------------- */
+function render() {
+  const p = state.player, e = state.enemy;
+
+  document.getElementById("playerLife").textContent = `❤ ${Math.max(0,p.life)}`;
+  document.getElementById("enemyLife").textContent = `❤ ${Math.max(0,e.life)}`;
+  document.getElementById("playerEnergy").textContent = `⚡ ${p.energy}/${p.energyMax}`;
+  document.getElementById("enemyEnergy").textContent = `⚡ ${e.energy}/${e.energyMax}`;
+  document.getElementById("playerDeckCount").textContent = `Deck: ${p.deck.length}`;
+  document.getElementById("enemyDeckCount").textContent = `Deck: ${e.deck.length}`;
+
+  document.getElementById("turnBanner").textContent = state.over
+    ? ""
+    : (state.turn === "player" ? "Your turn — play cards and attack" : "Opponent's turn...");
+
+  const enemyHandRow = document.getElementById("enemyHandRow");
+  enemyHandRow.innerHTML = "";
+  for (let i = 0; i < e.hand.length; i++) {
+    const back = document.createElement("div");
+    back.className = "miniBack";
+    enemyHandRow.appendChild(back);
   }
-});
-document.getElementById("ctrlUp").addEventListener("click", () => tryMove(0,-1));
-document.getElementById("ctrlDown").addEventListener("click", () => tryMove(0,1));
-document.getElementById("ctrlLeft").addEventListener("click", () => tryMove(-1,0));
-document.getElementById("ctrlRight").addEventListener("click", () => tryMove(1,0));
 
-/* ---------------- Battle ---------------- */
-function activeCreature() {
-  return team.find(c => c.hp > 0) || null;
+  renderBoard("enemyBoard", e.board, "enemy");
+  renderBoard("playerBoard", p.board, "player");
+  renderHand();
 }
 
-function startWildEncounter() {
-  const pool = SPECIES.filter(s => !s.evoLevel ? true : true); // any species can appear wild, incl. pre-evos mostly
-  const wildPool = SPECIES.filter(s => ["flambub","aquorb","leafkit","sparchick","pebblit","mossling","finbit"].includes(s.id));
-  const sp = wildPool[Math.floor(Math.random() * wildPool.length)];
-  const level = Math.max(1, Math.floor(Math.random() * 6) + 1);
-  wildEncounter = makeCreature(sp.id, level);
-  battleContext = { enemy: wildEncounter, fled: false };
-  showScreen("battleScreen");
-  setBattleLog(`A wild ${wildEncounter.name} (Lv.${wildEncounter.level}) appeared!`);
-  renderBattle();
-}
-
-function setBattleLog(msg) {
-  document.getElementById("battleLog").textContent = msg;
-}
-
-function renderBattle() {
-  const p = activeCreature();
-  const e = battleContext.enemy;
-
-  document.getElementById("enemyBattler").innerHTML = battlerHtml(e, speciesById(e.speciesId).icon);
-  document.getElementById("playerBattler").innerHTML = p
-    ? battlerHtml(p, speciesById(p.speciesId).icon)
-    : "<div>No creatures left!</div>";
-
-  document.getElementById("moveList").style.display = "none";
-  document.getElementById("teamList").style.display = "none";
-  document.getElementById("battleActions").style.display = "grid";
-
-  const noneAlive = !p;
-  document.getElementById("btnFight").disabled = noneAlive;
-  document.getElementById("btnCatch").disabled = noneAlive;
-}
-
-function battlerHtml(c, icon) {
-  const pct = Math.max(0, Math.round((c.hp / c.maxHp) * 100));
+function cardInnerHtml(card) {
   return `
-    <div class="icon">${icon}</div>
-    <div>${c.name} Lv.${c.level}</div>
-    <div class="hpBarOuter"><div class="hpBarInner ${pct < 30 ? "low" : ""}" style="width:${pct}%"></div></div>
-    <div style="font-size:0.75em; opacity:0.75;">${Math.max(0,c.hp)}/${c.maxHp} HP</div>
+    <div class="cost">${card.cost}</div>
+    <div class="icon">${card.icon}</div>
+    <div class="name">${card.name}</div>
+    <div class="stats"><span class="atk">⚔${card.atk}</span><span class="hp">❤${Math.max(0,card.hp)}</span></div>
   `;
 }
 
-document.getElementById("btnFight").addEventListener("click", () => {
-  const p = activeCreature();
-  if (!p) return;
-  const sp = speciesById(p.speciesId);
-  const moves = MOVES[sp.type];
-  const listEl = document.getElementById("moveList");
-  listEl.innerHTML = "";
-  moves.forEach(m => {
-    const b = document.createElement("button");
-    b.textContent = `${m.name} (${m.power})`;
-    b.addEventListener("click", () => playerAttack(m));
-    listEl.appendChild(b);
-  });
-  listEl.style.display = "grid";
-  document.getElementById("battleActions").style.display = "none";
-});
+function renderBoard(elId, board, side) {
+  const el = document.getElementById(elId);
+  el.innerHTML = "";
+  if (board.length === 0) {
+    const slot = document.createElement("div");
+    slot.className = "boardSlotEmpty";
+    el.appendChild(slot);
+  }
+  board.forEach(card => {
+    const div = document.createElement("div");
+    const canAct = side === "player" && state.turn === "player" && !state.over;
+    let cls = "card " + card.type;
+    if (card.resting) cls += " resting";
+    if (card.attacked) cls += " attacked";
+    if (state.selected && state.selected.uid === card.uid) cls += " selected";
+    div.className = cls;
+    div.innerHTML = cardInnerHtml(card);
 
-document.getElementById("btnTeam").addEventListener("click", () => {
-  const listEl = document.getElementById("teamList");
-  listEl.innerHTML = "";
-  team.forEach((c, idx) => {
-    const b = document.createElement("button");
-    const current = activeCreature() === c;
-    b.textContent = `${c.name} Lv.${c.level} (${Math.max(0,c.hp)}/${c.maxHp})`;
-    b.disabled = c.hp <= 0 || current;
-    b.addEventListener("click", () => switchActive(idx));
-    listEl.appendChild(b);
+    if (side === "player") {
+      div.addEventListener("click", () => selectAttacker(card));
+    } else {
+      div.addEventListener("click", () => targetEnemyCreature(card));
+    }
+    el.appendChild(div);
   });
-  listEl.style.display = "grid";
-  document.getElementById("battleActions").style.display = "none";
-});
 
-function switchActive(idx) {
-  const chosen = team[idx];
-  if (chosen.hp <= 0) return;
-  team.splice(idx, 1);
-  team.unshift(chosen);
-  setBattleLog(`Go, ${chosen.name}!`);
-  renderBattle();
-  document.getElementById("teamList").style.display = "none";
-  document.getElementById("battleActions").style.display = "grid";
-  setTimeout(enemyTurn, 900);
+  if (side === "enemy") {
+    el.style.cursor = state.selected ? "pointer" : "default";
+    el.addEventListener("click", (ev) => {
+      if (ev.target === el && state.selected) targetEnemyFace();
+    });
+  }
 }
 
-document.getElementById("btnRun").addEventListener("click", () => {
-  wildEncounter = null;
-  battleContext = null;
-  showScreen("mapScreen");
-  renderMap();
-});
-
-document.getElementById("btnCatch").addEventListener("click", () => {
-  const e = battleContext.enemy;
-  const chance = Math.min(0.9, 0.9 * (1 - e.hp / e.maxHp) + 0.1);
-  if (Math.random() < chance) {
-    setBattleLog(`Caught ${e.name}!`);
-    team.push(makeCreature(e.speciesId, e.level));
-    battleContext = null;
-    wildEncounter = null;
-    setTimeout(() => { showScreen("mapScreen"); renderMap(); }, 1200);
-  } else {
-    setBattleLog(`${e.name} broke free!`);
-    setTimeout(enemyTurn, 900);
-  }
-});
-
-function damage(attacker, defender, move) {
-  const atkSp = speciesById(attacker.speciesId);
-  const defSp = speciesById(defender.speciesId);
-  const typeMult = (TYPE_EFFECT[atkSp.type] && TYPE_EFFECT[atkSp.type][defSp.type]) || 1;
-  const raw = (move.power + attacker.atk) - defender.def * 0.5;
-  return Math.max(1, Math.round(raw * typeMult));
+function renderHand() {
+  const handEl = document.getElementById("hand");
+  handEl.innerHTML = "";
+  const p = state.player;
+  p.hand.forEach(card => {
+    const div = document.createElement("div");
+    const playable = state.turn === "player" && !state.over && card.cost <= p.energy && p.board.length < MAX_BOARD;
+    div.className = "card " + card.type + (playable ? "" : " disabled");
+    div.innerHTML = cardInnerHtml(card);
+    div.addEventListener("click", () => playCard(card, playable));
+    handEl.appendChild(div);
+  });
 }
 
-function playerAttack(move) {
-  const p = activeCreature();
-  const e = battleContext.enemy;
-  const dmg = damage(p, e, move);
-  e.hp -= dmg;
-  setBattleLog(`${p.name} used ${move.name}! Dealt ${dmg} damage.`);
-  document.getElementById("moveList").style.display = "none";
-  document.getElementById("battleActions").style.display = "grid";
-  renderBattle();
+/* ---------------- Player actions ---------------- */
+function playCard(card, playable) {
+  if (!playable) return;
+  const p = state.player;
+  p.energy -= card.cost;
+  p.hand = p.hand.filter(c => c.uid !== card.uid);
+  card.resting = true;
+  card.attacked = false;
+  p.board.push(card);
+  log(`You played ${card.name}.`);
+  render();
+}
 
-  if (e.hp <= 0) {
-    e.hp = 0;
-    renderBattle();
-    winBattle(p, e);
-    return;
+function selectAttacker(card) {
+  if (state.turn !== "player" || state.over) return;
+  if (card.resting || card.attacked) return;
+  state.selected = (state.selected && state.selected.uid === card.uid) ? null : card;
+  render();
+}
+
+function typeMultiplier(atkType, defType) {
+  return (TYPE_EFFECT[atkType] && TYPE_EFFECT[atkType][defType]) || 1;
+}
+
+function targetEnemyCreature(defCard) {
+  if (!state.selected || state.turn !== "player" || state.over) return;
+  const atkCard = state.selected;
+  const mult = typeMultiplier(atkCard.type, defCard.type);
+  const dmg = Math.max(1, Math.round(atkCard.atk * mult));
+  defCard.hp -= dmg;
+  log(`${atkCard.name} attacked ${defCard.name} for ${dmg}${mult > 1 ? " (super effective!)" : mult < 1 ? " (not very effective)" : ""}.`);
+  atkCard.attacked = true;
+  state.selected = null;
+
+  if (defCard.hp <= 0) {
+    log(`${defCard.name} was defeated!`);
+    state.enemy.board = state.enemy.board.filter(c => c.uid !== defCard.uid);
   }
-  setTimeout(enemyTurn, 900);
+  render();
+  checkGameOver();
+}
+
+function targetEnemyFace() {
+  if (!state.selected || state.turn !== "player" || state.over) return;
+  const atkCard = state.selected;
+  state.enemy.life -= atkCard.atk;
+  log(`${atkCard.name} attacked the opponent directly for ${atkCard.atk}.`);
+  atkCard.attacked = true;
+  state.selected = null;
+  render();
+  checkGameOver();
+}
+
+/* ---------------- Turn flow ---------------- */
+document.getElementById("endTurnBtn").addEventListener("click", () => {
+  if (state.turn !== "player" || state.over) return;
+  state.selected = null;
+  startTurn("enemy");
+  render();
+  setTimeout(enemyTurn, 700);
+});
+
+function startTurn(side) {
+  state.turn = side;
+  const s = state[side];
+  s.energyMax = Math.min(MAX_ENERGY, s.energyMax + 1);
+  s.energy = s.energyMax;
+  s.board.forEach(c => { c.resting = false; c.attacked = false; });
+  drawCards(s, 1);
+  if (side === "player") state.turnNumber++;
 }
 
 function enemyTurn() {
-  const p = activeCreature();
-  const e = battleContext.enemy;
-  if (!p) { loseBattle(); return; }
+  if (state.over) return;
+  const e = state.enemy, p = state.player;
 
-  const sp = speciesById(e.speciesId);
-  const moves = MOVES[sp.type];
-  const move = moves[Math.floor(Math.random() * moves.length)];
-  const dmg = damage(e, p, move);
-  p.hp -= dmg;
-  setBattleLog(`${e.name} used ${move.name}! Dealt ${dmg} damage.`);
-  renderBattle();
-
-  if (p.hp <= 0) {
-    p.hp = 0;
-    renderBattle();
-    if (!activeCreature()) {
-      setTimeout(loseBattle, 1000);
-    } else {
-      setBattleLog(`${p.name} fainted! Choose your next creature.`);
-      setTimeout(() => document.getElementById("btnTeam").click(), 1000);
+  // Play creatures greedily: biggest affordable first, while board has room
+  let playedSomething = true;
+  while (playedSomething) {
+    playedSomething = false;
+    const affordable = e.hand
+      .filter(c => c.cost <= e.energy)
+      .sort((a, b) => b.cost - a.cost);
+    if (affordable.length > 0 && e.board.length < MAX_BOARD) {
+      const card = affordable[0];
+      e.energy -= card.cost;
+      e.hand = e.hand.filter(c => c.uid !== card.uid);
+      card.resting = true;
+      card.attacked = false;
+      e.board.push(card);
+      log(`Opponent played ${card.name}.`);
+      playedSomething = true;
     }
-  } else {
-    renderBattle();
+  }
+  render();
+
+  setTimeout(() => {
+    // Attack phase
+    const readyAttackers = e.board.filter(c => !c.resting && !c.attacked);
+    readyAttackers.forEach(atkCard => {
+      if (state.over) return;
+      // prefer a kill on a player creature, else biggest trade, else face
+      let bestTarget = null, bestScore = -Infinity;
+      p.board.forEach(defCard => {
+        const mult = typeMultiplier(atkCard.type, defCard.type);
+        const dmg = Math.max(1, Math.round(atkCard.atk * mult));
+        const kills = dmg >= defCard.hp;
+        const score = (kills ? 100 : 0) + dmg;
+        if (score > bestScore) { bestScore = score; bestTarget = defCard; }
+      });
+
+      if (bestTarget && bestScore >= 0) {
+        const mult = typeMultiplier(atkCard.type, bestTarget.type);
+        const dmg = Math.max(1, Math.round(atkCard.atk * mult));
+        bestTarget.hp -= dmg;
+        log(`Opponent's ${atkCard.name} attacked your ${bestTarget.name} for ${dmg}.`);
+        atkCard.attacked = true;
+        if (bestTarget.hp <= 0) {
+          log(`Your ${bestTarget.name} was defeated!`);
+          p.board = p.board.filter(c => c.uid !== bestTarget.uid);
+        }
+      } else {
+        p.life -= atkCard.atk;
+        log(`Opponent's ${atkCard.name} attacked you directly for ${atkCard.atk}.`);
+        atkCard.attacked = true;
+      }
+    });
+
+    render();
+    checkGameOver();
+    if (!state.over) {
+      startTurn("player");
+      render();
+    }
+  }, 700);
+}
+
+function checkGameOver() {
+  if (state.player.life <= 0) {
+    endGame("Opponent wins!");
+  } else if (state.enemy.life <= 0) {
+    endGame("You win!");
+  } else if (state.player.deck.length === 0 && state.player.hand.length === 0 && state.player.board.length === 0) {
+    endGame("Opponent wins! (You ran out of cards)");
+  } else if (state.enemy.deck.length === 0 && state.enemy.hand.length === 0 && state.enemy.board.length === 0) {
+    endGame("You win! (Opponent ran out of cards)");
   }
 }
 
-function winBattle(p, e) {
-  const xpGain = 8 + e.level * 3;
-  p.xp += xpGain;
-  setBattleLog(`${e.name} fainted! ${p.name} gained ${xpGain} XP.`);
-  const xpToLevel = p.level * 12;
-  if (p.xp >= xpToLevel) {
-    p.xp -= xpToLevel;
-    p.level += 1;
-    const sp = speciesById(p.speciesId);
-    p.maxHp = sp.base.hp + p.level * 3;
-    p.hp = p.maxHp;
-    p.atk = sp.base.atk + p.level;
-    p.def = sp.base.def + p.level;
-    setBattleLog(`${p.name} leveled up to Lv.${p.level}!`);
-    if (sp.evoLevel && p.level >= sp.evoLevel && sp.evoTo) {
-      const newSp = speciesById(sp.evoTo);
-      p.speciesId = newSp.id;
-      p.name = newSp.name;
-      p.maxHp = newSp.base.hp + p.level * 3;
-      p.hp = p.maxHp;
-      p.atk = newSp.base.atk + p.level;
-      p.def = newSp.base.def + p.level;
-      setBattleLog(`${sp.name} evolved into ${newSp.name}!`);
-    }
-  }
-  battleContext = null;
-  wildEncounter = null;
-  setTimeout(() => { showScreen("mapScreen"); renderMap(); }, 1400);
+function endGame(msg) {
+  state.over = true;
+  document.getElementById("overlayTitle").textContent = msg;
+  document.getElementById("overlay").style.display = "flex";
+  log(msg);
 }
 
-function loseBattle() {
-  setBattleLog("All your creatures fainted! Retreating to heal...");
-  team.forEach(c => { const sp = speciesById(c.speciesId); c.hp = c.maxHp; });
-  battleContext = null;
-  wildEncounter = null;
-  setTimeout(() => { showScreen("mapScreen"); renderMap(); }, 1400);
-}
+document.getElementById("newGameBtn").addEventListener("click", newGame);
+document.getElementById("overlayBtn").addEventListener("click", newGame);
 
-/* ---------------- Init ---------------- */
-renderStarters();
+newGame();
 </script>
 
 </body>
